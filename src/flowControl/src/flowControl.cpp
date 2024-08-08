@@ -3,7 +3,6 @@
 #include "utility/include/tools.h"
 #include "mesh/include/genmesh.h"
 #include "utility/include/log.h"
-
 #include <fstream>
 
 FlowControl::FlowControl(const std::string& inname)
@@ -16,6 +15,14 @@ FlowControl::FlowControl(const std::string& inname)
 void FlowControl::preProcess()
 {
 	readconfig();
+	std::string flag = GlobalData::GetString("meshKind");
+	//flag = "Semicircular";//Debug
+	if (flag == "Uniform")
+		basemesh_ = std::make_shared<UniformMesh>(mesh_);
+	else if (flag == "Semicircular")
+		basemesh_ = std::make_shared<SemicircularMesh>(mesh_);
+	else
+		spdlog::error("the mesh key word is wrng!");
 }
 
 void FlowControl::postProcess()
@@ -26,9 +33,8 @@ void FlowControl::postProcess()
 void FlowControl::start()
 {
 	spdlog::info("start gen mesh.");
-	Genmesh genmesh(mesh_);
-	genmesh.gennode();
-	genmesh.genelement();
+	basemesh_->gennode();
+	basemesh_->genelement();
 	spdlog::info("The mesh generation is complete. ");
 }
 
@@ -82,7 +88,8 @@ void FlowControl::outputMesh()
 	std::string basePath = "tempData";
 	Tools::createFolder(basePath);
 	std::ofstream os;
-	os.open("tempData/Mesh_1.dat");
+	const std::string meshtag = GlobalData::GetString("meshKind");
+	os.open("tempData/Mesh_" + meshtag + ".dat");
 	using std::endl;
 	os << "TITLE = MESH" << std::endl;
 	os << "variables=x,y" << std::endl;

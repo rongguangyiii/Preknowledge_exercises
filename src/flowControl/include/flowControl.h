@@ -14,6 +14,8 @@ License
 #define FLOWCONTROL_H
 #include "mesh/include/mesh.h"
 #include "utility/include/log.h"
+#include "mesh/include/meshsSelect.h"
+
 #include <string>
 
 class FlowControl
@@ -30,6 +32,7 @@ private:
 	void outputMesh();
 	std::string inputlFileName_;
 	std::shared_ptr<Mesh> mesh_;
+	std::shared_ptr<MeshsSelect> basemesh_;
 };
 
 
