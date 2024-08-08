@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------*/
 
 #include "flowControl/include/flowControl.h"
-#include <iostream>
+#include "utility/include/log.h"
 
 int main() 
 {

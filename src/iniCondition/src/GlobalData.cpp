@@ -2,9 +2,10 @@
 #include "utility/include/log.h"
 #include <fstream>
 
-GlobalData& GlobalData::Init()
+GlobalData& GlobalData::Init(const std::string& fileName)
 {
 	static GlobalData data;
+	data.readconfig(fileName);
     return data;
 }
 
@@ -35,7 +36,6 @@ int GlobalData::GetInt(const std::string& dataName)
 double GlobalData::GetDouble(const std::string& dataName)
 {
     const dataVariant& value = Get(dataName);
-    //spdlog::info("Retrieved {} with type index: {}", dataName, value.index()); // debug info
     if (std::holds_alternative<double>(value))
         return std::get<double>(value);
     else
@@ -54,5 +54,49 @@ std::string GlobalData::GetString(const std::string& dataName)
 void GlobalData::Update(const std::string& varName, const dataVariant& varValue)
 {
     dataMap_[varName] = varValue;
-    //spdlog::info("Updated {} with value: {}", varName, varValue.index()); // debug info
+}
+
+void GlobalData::readconfig(const std::string& fileName)
+{
+	std::ifstream fin("../../config/" + fileName);
+	std::string line;
+	std::string dataType;
+	std::string dataName;
+	std::string dataValue;
+
+	while (std::getline(fin, line))
+	{
+		std::string separator = " =\r\n\t#$,;\"";
+		if (line.empty())
+			continue;
+		size_t id = line.find_first_not_of(separator);
+		if (id == std::string::npos)
+			continue;
+		//删除前方没用的信息
+		line.erase(line.begin(), line.begin() + id);
+		//注释行
+		if (line[0] == '!' || line[0] == '！' || line[0] == '#' || line[0] == '/')
+			continue;
+		id = line.find_first_of(separator);
+		dataType = line.substr(0, id);
+		line.erase(0, id);
+		line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
+		if (line.empty())
+			continue;
+		id = line.find_first_of("=");
+		if (id == std::string::npos)
+			continue;
+		dataName = line.substr(0, id);
+		dataValue = line.substr(id + 1);
+		if (dataType == "string")
+			GlobalData::Update(dataName, dataValue);
+		else if (dataType == "double")
+			GlobalData::Update(dataName, stod(dataValue));
+		else if (dataType == "int")
+			GlobalData::Update(dataName, stoi(dataValue));
+		else
+		{
+			spdlog::warn("Unspported Data Type:{}, Name:{}, Value:{}", dataType, dataName, dataValue);
+		}
+	}
 }

@@ -4,25 +4,22 @@
 	Copyright (C) ,Since 2024
 -------------------------------------------------------------------------------
 License
-!	@file		genmesh.h
-!	@brief	mesh generation.
+!	@file		DUMPFILE.h
+!	@brief	Output grid information to display in tecplot.
 !	@author	liu guanying.
-!	@date 2024.8.6
+!   @date   2024.8.8
 \*---------------------------------------------------------------------------*/
 #pragma once
 #include "mesh/include/mesh.h"
-#include<string>
-#include<memory>
+#include <fstream>
+#include <memory>
 
-class Genmesh
+class DumpFile
 {
 public:
-	Genmesh(std::shared_ptr<Mesh>& it) :mesh_(it) {}
-	~Genmesh() {}
-	void gennode();
-	void genelement();
-
+	DumpFile(std::shared_ptr<Mesh>& outmesh);
+	~DumpFile() {}
+	void outputmesh();
 private:
 	std::shared_ptr<Mesh>& mesh_;
-
 };
