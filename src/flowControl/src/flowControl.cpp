@@ -2,6 +2,8 @@
 #include "iniCondition/include/GlobalData.h"
 #include "utility/include/log.h"
 #include "outfile/include/dumpfile.h"
+#include "solver/include/flowSolver.h"
+
 
 void FlowControl::start()
 {
@@ -40,5 +42,7 @@ void FlowControl::postProcess()
 
 void FlowControl::solver()
 {
+	FlowSlover flowSolver(mesh_);
+	flowSolver.solve();
 	//to do solver...
 }
