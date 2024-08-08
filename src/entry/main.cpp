@@ -10,10 +10,8 @@
 int main() 
 {
     Log::Satrt();
-    FlowControl flowControl("config.ini");
-    flowControl.preProcess();
+    FlowControl flowControl;
     flowControl.start();
-    flowControl.postProcess();
     return 0;
 }
 

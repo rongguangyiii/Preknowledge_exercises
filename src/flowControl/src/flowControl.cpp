@@ -3,6 +3,13 @@
 #include "utility/include/log.h"
 #include "outfile/include/dumpfile.h"
 
+void FlowControl::start()
+{
+	preProcess();
+	solver();
+	postProcess();
+}
+
 FlowControl::FlowControl(const std::string& inname)
 {
 	mesh_ = std::make_shared<Mesh>();
@@ -31,7 +38,7 @@ void FlowControl::postProcess()
 	spdlog::info("Mesh dump file complete. ");
 }
 
-void FlowControl::start()
+void FlowControl::solver()
 {
 	//to do solver...
 }
