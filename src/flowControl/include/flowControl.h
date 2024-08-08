@@ -19,10 +19,11 @@ License
 class FlowControl
 {
 public:
-	FlowControl(const std::string& inname);
+	FlowControl(const std::string& inname = "config.ini");
 	~FlowControl() {}
 
 	void start();
+	void solver();
 	void preProcess();
 	void postProcess();
 private:
