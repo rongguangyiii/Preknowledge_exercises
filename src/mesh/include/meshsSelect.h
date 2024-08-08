@@ -22,7 +22,7 @@ public:
 
     virtual void gennode() = 0;
     virtual void genelement() = 0;
-    //void genmesh();
+    void genmesh();
 protected:
     std::shared_ptr<Mesh>& mesh_;
 };

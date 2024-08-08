@@ -1,10 +1,13 @@
 
 #include"mesh/include/meshsSelect.h"
 #include "iniCondition/include/GlobalData.h"
-#include"Coordinate/include/Coordinate.h"
-#include "mesh/include/node.h"
-#include "utility/include/log.h"
 #include "utility/include/tools.h"
+
+void MeshsSelect::genmesh()
+{
+	gennode();
+	genelement();
+}
 
 
 void UniformMesh::gennode()

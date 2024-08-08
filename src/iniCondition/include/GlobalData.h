@@ -20,7 +20,7 @@ public:
     using dataVariant = std::variant<std::string, int, double>;
     GlobalData(const GlobalData&) = delete;
     GlobalData& operator=(const GlobalData&) = delete;
-    static GlobalData& Init();
+    static GlobalData& Init(const std::string& fileName);
     static int GetInt(const std::string& dataName);
     static double GetDouble(const std::string& dataName);
     static std::string GetString(const std::string& dataName);
@@ -31,6 +31,7 @@ private:
     ~GlobalData() {}
     static const dataVariant& Get(const std::string& dataName);
     static std::unordered_map<std::string, dataVariant> dataMap_;
+    static void readconfig(const std::string& fileName);
 };
 
 
