@@ -1,4 +1,6 @@
 #include "mesh/include/mesh.h"
+#include "iniCondition/include/GlobalData.h"
+
 
 Mesh::Mesh()
 {
@@ -32,3 +34,4 @@ Mesh::elementPtr& Mesh::getelement(size_t index)
 {
 	return elementlist_.at(index);
 }
+

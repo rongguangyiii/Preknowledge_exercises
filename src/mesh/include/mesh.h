@@ -14,6 +14,9 @@ License
 #include <vector>
 #include <memory>
 
+class Node;
+class Element;
+
 class Mesh
 {
 public:
@@ -27,6 +30,7 @@ public:
 	std::vector<elementPtr>& getelementlist();
 	size_t getnodenum();
 	size_t getelementnum();
+	void calCoordTrans2ord();
 
 private:
 	enum meshtype { uniform, semicircular };

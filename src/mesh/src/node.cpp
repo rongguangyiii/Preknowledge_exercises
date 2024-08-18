@@ -1,15 +1,21 @@
 #include "mesh/include/node.h"
 #include "iniCondition/include/GlobalData.h"
+#include "utility/include/log.h"
 
-Node::Node(const Coordinate& coor, const size_t index) : nodecoor_(coor), nodeindex_(index)
+
+Node::Node(const Coordinate& coor, const size_t index, const std::shared_ptr<Mesh>& ptr, Nodetype type)
+	: nodecoor_(coor), nodeindex_(index), nodetype_(type), meshptr_(ptr),primitiveValue_(4, 0.0), conservedValue_(4, 0.0),
+	 coordTrans_ { /* ksi_x_= */ 0.0, /* ksi_y_= */ 0.0, /* eta_x_= */ 0.0, /* eta_y_= */ 0.0, /* jacobian_= */ 0.0 }
 {
-	initValues();
 }
 
 Node& Node::operator=(const Node& other) {
 	if (this != &other) {
 		nodecoor_ = other.nodecoor_;
 		nodeindex_ = other.nodeindex_;
+		primitiveValue_ = other.primitiveValue_;
+		conservedValue_ = other.conservedValue_;
+		coordTrans_ = other.coordTrans_;
 	}
 	return *this;
 }
@@ -21,56 +27,58 @@ bool Node::operator==(const Node& other) const {
 void Node::toConservedform()
 {
 	const double gamma = GlobalData::GetDouble("refGamma");
-	auto& density = primitiveValue_.at("rho");
-	auto& xVel = primitiveValue_.at("u");
-	auto& yVel = primitiveValue_.at("v");
-	auto& zVel = primitiveValue_.at("w");
-	auto& pressure = primitiveValue_.at("p");
+	const auto& density = r();
+	const auto& xVel = u();
+	const auto& yVel = v();
+	//const auto& zVel = w();
+	const auto& pressure = p();
 
-	conservedValue_["rho"] = density;
-	conservedValue_["rho_u"] = density * xVel;
-	conservedValue_["rho_v"] = density * yVel;
-	conservedValue_["rho_w"] = density * zVel;
-	conservedValue_["E"] = pressure / (gamma - 1) + 0.5 * density * (xVel * xVel + yVel * yVel + zVel * zVel);
+	conservedValue_[0] = density;
+	conservedValue_[1] = density * xVel;
+	conservedValue_[2] = density * yVel;
+	//conservedValue_[3] = density * zVel;
+	conservedValue_[3] = pressure / (gamma - 1) + 0.5 * density * (xVel * xVel + yVel * yVel /*+ zVel * zVel*/);
 
 }
 
 void Node::toPrimitiveform()
 {
 	const double gamma = GlobalData::GetDouble("refGamma");
-	auto& cons0 = conservedValue_.at("rho");
-	auto& cons1 = conservedValue_.at("rho_u");
-	auto& cons2 = conservedValue_.at("rho_v");
-	auto& cons3 = conservedValue_.at("rho_w");
-	auto& cons4 = conservedValue_.at("E");
+	const auto& cons0 = rho();
+	const auto& cons1 = rhou();
+	const auto& cons2 = rhov();
+	//const auto& cons3 = rhow();
+	const auto& cons4 = E();
 
 	double density = cons0;
 	double xVel = cons1 / cons0;
 	double yVel = cons2 / cons0;
-	double zVel = cons3 / cons0;
-	double pressure = pressure = (gamma - 1) * (cons4 - 0.5 * density * (xVel * xVel + yVel * yVel + zVel * zVel));
-	primitiveValue_.at("rho") = density;
-	primitiveValue_.at("u") = xVel;
-	primitiveValue_.at("v") = yVel;
-	primitiveValue_.at("w") = zVel;
-	primitiveValue_.at("p") = pressure;
-
+	//double zVel = cons3 / cons0;
+	double pressure =  (gamma - 1) * (cons4 - 0.5 * density * (xVel * xVel + yVel * yVel /*+ zVel * zVel*/));
+	primitiveValue_.at(0) = density;
+	primitiveValue_.at(1) = xVel;
+	primitiveValue_.at(2) = yVel;
+	//primitiveValue_.at(3) = zVel;
+	primitiveValue_.at(3) = pressure;
+	if (pressure < 0.0)
+	{
+		spdlog::error("the pressure is negative !!!");
+		throw std::runtime_error("Error the pressure is negative.");
+	}
+	//checkNaN(pressure);
 }
 
-void Node::initValues()
+void Node::setCoordTrans(double inksi_x, double inksi_y, double ineta_x, double ineat_y, double inJacobian)
 {
-	primitiveValue_ = {
-	{"rho", 0.0},
-	{"u", 0.0},
-	{"v", 0.0},
-	{"w", 0.0},
-	{"p", 0.0}
-	};
-	conservedValue_ = {
-		{"rho", 0.0},
-		{"rho_u", 0.0},
-		{"rho_v", 0.0},
-		{"rho_w", 0.0},
-		{"E", 0.0}
-	};
+	coordTrans_ = { inksi_x, inksi_y, 0.0, ineta_x, ineat_y,0.0, inJacobian };
+}
+
+
+void Node::checkNaN(const double value)
+{
+	if (std::isnan(value))
+	{
+		spdlog::error("the result is NaN !!!");
+		throw std::runtime_error("Errorthe result is NaN.");
+	}
 }

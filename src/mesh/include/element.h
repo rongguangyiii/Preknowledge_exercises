@@ -14,6 +14,8 @@ License
 #include<memory>
 #include<vector>
 
+class Node;
+
 class Element
 {
 public:
