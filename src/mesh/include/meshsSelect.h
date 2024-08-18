@@ -17,14 +17,19 @@ License
 class MeshsSelect
 {
 public:
-    MeshsSelect(std::shared_ptr<Mesh>& mesh) : mesh_(mesh) {}
+    MeshsSelect(std::shared_ptr<Mesh>& mesh);
     virtual ~MeshsSelect() = default;
 
     virtual void gennode() = 0;
     virtual void genelement() = 0;
+    void coordTrans2ord();
     void genmesh();
+    void genNeiborNode();
+
 protected:
     std::shared_ptr<Mesh>& mesh_;
+    std::vector<std::vector<double>> x;
+    std::vector<std::vector<double>> y;
 };
 
 // UniformMesh ≈……˙¿‡
