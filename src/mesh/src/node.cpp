@@ -4,7 +4,7 @@
 
 
 Node::Node(const Coordinate& coor, const size_t index, const std::shared_ptr<Mesh>& ptr, Nodetype type)
-	: nodecoor_(coor), nodeindex_(index), nodetype_(type), meshptr_(ptr),primitiveValue_(4, 0.0), conservedValue_(4, 0.0),
+	: nodecoor_(coor), nodeindex_(index), nodetype_(type), meshptr_(ptr),primitiveValue_(4, 0.0), conservedValue_(4, 0.0), RHS_(4,0.0),
 	 coordTrans_ { /* ksi_x_= */ 0.0, /* ksi_y_= */ 0.0, /* eta_x_= */ 0.0, /* eta_y_= */ 0.0, /* jacobian_= */ 0.0 }
 {
 }
@@ -27,12 +27,16 @@ bool Node::operator==(const Node& other) const {
 void Node::toConservedform()
 {
 	const double gamma = GlobalData::GetDouble("refGamma");
-	const auto& density = r();
-	const auto& xVel = u();
-	const auto& yVel = v();
+	const auto& density = primitiveValue_[0];
+	const auto& xVel = primitiveValue_[1];
+	const auto& yVel = primitiveValue_[2];
 	//const auto& zVel = w();
-	const auto& pressure = p();
-
+	const auto& pressure = primitiveValue_[3];
+	if (pressure < 0.0)
+	{
+		spdlog::error("the pressure is negative !!!");
+		throw std::runtime_error("Error the pressure is negative.");
+	}
 	conservedValue_[0] = density;
 	conservedValue_[1] = density * xVel;
 	conservedValue_[2] = density * yVel;
@@ -44,28 +48,27 @@ void Node::toConservedform()
 void Node::toPrimitiveform()
 {
 	const double gamma = GlobalData::GetDouble("refGamma");
-	const auto& cons0 = rho();
-	const auto& cons1 = rhou();
-	const auto& cons2 = rhov();
-	//const auto& cons3 = rhow();
-	const auto& cons4 = E();
+	//const auto& cons0 = rho();
+	//const auto& cons1 = rhou();
+	//const auto& cons2 = rhov();
+	////const auto& cons3 = rhow();
+	//const auto& cons4 = E();
 
-	double density = cons0;
-	double xVel = cons1 / cons0;
-	double yVel = cons2 / cons0;
+	double density = conservedValue_[0];
+	double xVel = conservedValue_[1] / density;
+	double yVel = conservedValue_[2] / density;
 	//double zVel = cons3 / cons0;
-	double pressure =  (gamma - 1) * (cons4 - 0.5 * density * (xVel * xVel + yVel * yVel /*+ zVel * zVel*/));
-	primitiveValue_.at(0) = density;
-	primitiveValue_.at(1) = xVel;
-	primitiveValue_.at(2) = yVel;
+	double pressure =  (gamma - 1) * (conservedValue_[3] - 0.5 * density * (xVel * xVel + yVel * yVel /*+ zVel * zVel*/));
+	primitiveValue_[0] = density;
+	primitiveValue_[1] = xVel;
+	primitiveValue_[2] = yVel;
 	//primitiveValue_.at(3) = zVel;
-	primitiveValue_.at(3) = pressure;
+	primitiveValue_[3] = pressure;
 	if (pressure < 0.0)
 	{
 		spdlog::error("the pressure is negative !!!");
 		throw std::runtime_error("Error the pressure is negative.");
 	}
-	//checkNaN(pressure);
 }
 
 void Node::setCoordTrans(double inksi_x, double inksi_y, double ineta_x, double ineat_y, double inJacobian)

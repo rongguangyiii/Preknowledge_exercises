@@ -14,7 +14,7 @@ License
 class FlowSlover
 {
 public:
-	FlowSlover(std::shared_ptr<Mesh>& mesh) : mesh_(mesh), caltime_(0.0),residual_(0.0) {}
+	FlowSlover(std::shared_ptr<Mesh>& mesh) : mesh_(mesh), caltime_(0.0),residual_(1.0) {}
 	~FlowSlover() {}
 	void solve();
 	void Initializeflow();
@@ -31,6 +31,7 @@ private:
 	void vanLeer(const std::shared_ptr<Node>& nodeptr, const Node::TransCoef& trans, std::vector<double>& fp, std::vector<double>& fn);
 	void checkNaN(double value1);
 	void checkNaN(std::vector<double> value1);
+	double Dt();
 	std::shared_ptr<Mesh>& mesh_;
 	double residual_;
 	double caltime_;
