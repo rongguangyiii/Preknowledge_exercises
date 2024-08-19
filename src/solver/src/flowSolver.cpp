@@ -23,25 +23,20 @@ void FlowSlover::Initializeflow()
 	for (auto& curnode : nodesVe)
 	{
 		auto& Privalue = curnode->getPrimitiveValue();
-		if (Node::Nodetype::leftbound == curnode->getType())
+		const auto& nodeX = curnode->getCoord().x();
+		if (nodeX < 1.0 || std::fabs(nodeX - 1.0) < 1e-6)
 		{
-			Privalue[0] = 2.80;   //rho = 1.0
-			Privalue[1] = 0.5;  //u   = 10.0
+			Privalue[0] = 5.40;   //rho = 1.0
+			Privalue[1] = 2.222;  //u   = 10.0
 			Privalue[2] = 0.0;   //v   = 0.0
-			Privalue[3] = 1.0;   //p   = 1.0
-			//privalue[4] = 1.0;
+			Privalue[3] = 10.333;   //p   = 1.0
 		}
-		else if (Node::Nodetype::leftbound != curnode->getType())
+		else
 		{
 			Privalue[0] = 1.4;
 			Privalue[1] = 0.0;
 			Privalue[2] = 0.0;
 			Privalue[3] = 1.0;
-			//privalue[4] = 1.0;
-		}
-		else
-		{
-			spdlog::error("Initializeflow error! unexpected node type!");
 		}
 		curnode->toConservedform();
 	}
@@ -52,18 +47,18 @@ void FlowSlover::timeAdvance()
 {
 	size_t timestep = 0;
 	writeTecplotFile(timestep); //输出第0步用于检查.
-	//residual_ = 40.0;  // 初始化残差
 	do
 	{
 		if (caltime_ > 30.0 || timestep > 500000)
 			break;
 		++timestep;
+		spdlog::info("Start Timestep: {} solve.... ", timestep);
 		//1.欧拉时间推进
 		solverEuler();
 		//2.当前步残差计算,并更新原始变量
 		computeResidual();
-		std::cout << "Timestep: " << timestep << " Residual: " << residual_ << std::endl;
-		//spdlog::info("Timestep: {} Residual: {}", timestep, residual_);
+		//std::cout << "Timestep: " << timestep << " Residual: " << residual_ << std::endl;
+		spdlog::info("Timestep: {} solve complete, and Residual: {}", timestep, residual_);
 		//3.输出当前时间步的结果
 		writeTecplotFile(timestep);
 	} while (residual_ > 1e-10);
@@ -71,31 +66,20 @@ void FlowSlover::timeAdvance()
 
 void FlowSlover::solverEuler()
 {
-	residual_ = 0.0;
-	double dt = 0.01;//dt后续再算
 	std::vector<Mesh::nodePtr>& nodesVe = mesh_->getnodelist();
+	for (auto& pit : nodesVe)
+	{
+		pit->toPrimitiveform();//检查顺序！
+	}
+
 	for (auto& it : nodesVe)
 	{
-		//it->toPrimitiveform(); 
 		auto thetype = it->getType();
 		if (Node::Nodetype::inner != thetype)
 			continue;
 		std::vector<double> rhs = computeRHS(it);
-		std::vector<double> U = it->getConservedValue();
-
-		const size_t calsize = 4;
-		std::vector<double> Unew(calsize, 0.0);
-		double jacobian = it->getcoordTrans().jacob_;
-		for (size_t ivar = 0; ivar < calsize; ivar++)
-		{
-			Unew[ivar] = U[ivar] - jacobian * rhs[ivar] * dt;
-		}
-		residual_ += std::pow(rhs[1], 2);//这只是一个量的残差，
-		it->setConservedValue(Unew);
+		it->setRHS(rhs);
 	}
-	caltime_ += dt;
-	//residual_ = std::sqrt(residual_);
-	BoundExtrapolate();
 }
 
 std::vector<double> FlowSlover::computeRHS(std::shared_ptr<Node>& it)
@@ -121,13 +105,46 @@ std::vector<double> FlowSlover::computeRHS(std::shared_ptr<Node>& it)
 	return rhs;
 }
 
+double FlowSlover::Dt()
+{
+	double  smaxk = 0.0, smaxi = 0.0;
+	std::vector<Mesh::nodePtr>& nodesVe = mesh_->getnodelist();
+	for (auto& it : nodesVe)
+	{
+		Node::TransCoef ctr = it->getcoordTrans();
+		double ro = it->rho();
+		double u = it->u();
+		double v = it->v();
+		double pp = it->p();
+		double gama = GlobalData::GetDouble("refGamma");
+		double c = std::sqrt(gama * pp / ro);  // 声速
+
+		double sk = std::sqrt(ctr.ksi_x_ * ctr.ksi_x_ + ctr.ksi_y_ * ctr.ksi_y_);
+		double si = std::sqrt(ctr.eta_x_ * ctr.eta_x_ + ctr.eta_y_ * ctr.eta_y_);
+		double uk = ctr.ksi_x_ * u + ctr.ksi_y_ * v + ctr.ksi_t_;
+		double ui = ctr.eta_x_ * u + ctr.eta_y_ * v + ctr.eta_t_;
+
+		double sbextd = std::fabs(uk) + c * sk;
+		double sbeytd = std::fabs(ui) + c * si;
+		if (sbextd > smaxk)
+			smaxk = sbextd;
+
+		if (sbeytd > smaxi)
+			smaxi = sbeytd;
+
+	}
+	double cfl = GlobalData::GetDouble("CFL");
+	//double dt = cfl / (smaxk + smaxi);
+	return cfl / (smaxk + smaxi);
+}
+
 void FlowSlover::BoundExtrapolate()
 {
 	std::vector<Mesh::nodePtr>& nodesVe = mesh_->getnodelist();
 	for (auto& it : nodesVe)
 	{
 		auto thetype = it->getType();
-		if (Node::Nodetype::inner == thetype || Node::Nodetype::leftbound == thetype)
+		if (Node::Nodetype::inner == thetype)
 			continue;
 		const std::vector<std::shared_ptr<Node>>& neighbor = it->getNeighbor();
 		std::vector<double> Unew;
@@ -142,6 +159,10 @@ void FlowSlover::BoundExtrapolate()
 		else if (Node::Nodetype::upbound == thetype)
 		{
 			Unew = neighbor[2]->getConservedValue();
+		}
+		else if (Node::Nodetype::leftbound == thetype)
+		{
+			Unew = neighbor[0]->getConservedValue();
 		}
 		else
 		{
@@ -180,8 +201,8 @@ void FlowSlover::split(const std::vector<std::shared_ptr<Node>>& nodeTemplate, s
 	std::vector<double> fluxNegative_halfMinsRight(4, 0.0);
 
 	std::vector<double> rhs(4, 0.0);
-	steger(nodeTemplate[0], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfMinsLeft, fluxNegative_halfMinsLeft);//F_n(Q_left(i-1/2)),F_p(Q_left(i-1/2))
-	steger(nodeTemplate[1], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfMinsRight, fluxNegative_halfMinsRight);//F_n(Q_right(i-1/2)),F_p(Q_right(i-1/2))
+	vanLeer(nodeTemplate[0], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfMinsLeft, fluxNegative_halfMinsLeft);//F_n(Q_left(i-1/2)),F_p(Q_left(i-1/2))
+	vanLeer(nodeTemplate[1], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfMinsRight, fluxNegative_halfMinsRight);//F_n(Q_right(i-1/2)),F_p(Q_right(i-1/2))
 
 	for (size_t iFlux = 0; iFlux < fluxminus.size(); iFlux++)
 	{
@@ -193,8 +214,8 @@ void FlowSlover::split(const std::vector<std::shared_ptr<Node>>& nodeTemplate, s
 	std::vector<double> fluxNegative_halfPlusLeft(4, 0.0);
 	std::vector<double> fluxPositive_halfPlusRight(4, 0.0);
 	std::vector<double> fluxNegative_halfPlusRight(4, 0.0);
-	steger(nodeTemplate[1], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfPlusLeft, fluxNegative_halfPlusLeft);//F_n(Q_left(i+1/2)),F_p(Q_left(i+1/2))
-	steger(nodeTemplate[2], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfPlusRight, fluxNegative_halfPlusRight);//F_n(Q_right(i+1/2)),F_p(Q_right(i+1/2))
+	vanLeer(nodeTemplate[1], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfPlusLeft, fluxNegative_halfPlusLeft);//F_n(Q_left(i+1/2)),F_p(Q_left(i+1/2))
+	vanLeer(nodeTemplate[2], nodeTemplate[1]->getcoordTrans(), fluxPositive_halfPlusRight, fluxNegative_halfPlusRight);//F_n(Q_right(i+1/2)),F_p(Q_right(i+1/2))
 
 	for (size_t iFlux = 0; iFlux < fluxplus.size(); iFlux++)
 	{
@@ -206,10 +227,10 @@ void FlowSlover::split(const std::vector<std::shared_ptr<Node>>& nodeTemplate, s
 
 void FlowSlover::steger(const std::shared_ptr<Node>& nodeptr, const Node::TransCoef& trans, std::vector<double>& fp, std::vector<double>& fn)
 {
-	double ro = nodeptr->rho();
+	double ro = nodeptr->r();
 	double uu = nodeptr->u();
 	double vv = nodeptr->v();
-	double ee = nodeptr->E();
+	//double ee = nodeptr->E();//不能直接get,因为上一个节点根据计算流程来看已经被更新了
 	double pp = nodeptr->p();
 	//Node::TransCoef trans = nodeptr->getcoordTrans();
 	double k_x = trans.ksi_x_;//冻结系数这里还要考虑，不能直接用邻居点的。
@@ -220,6 +241,7 @@ void FlowSlover::steger(const std::shared_ptr<Node>& nodeptr, const Node::TransC
 	double epls = 1.0e-10;  // 熵修正函数中的较小正数
 
 	//double pp = (gama - 1.0) * (ee - ro * (uu * uu + vv * vv) / 2.0);  // 压力
+	double ee = pp / (gama - 1) + 0.5 * ro * (uu * uu + vv * vv /*+ zVel * zVel*/); 
 	double cc = std::sqrt(gama * pp / ro);  // 声速
 	checkNaN(cc);
 
@@ -276,28 +298,38 @@ void FlowSlover::steger(const std::shared_ptr<Node>& nodeptr, const Node::TransC
 
 void FlowSlover::computeResidual()
 {
-
-	//residual_ = 0.0;
+	residual_ = 0.0;
+	double dt = 0.005;//dt后续再算
+	//double dt = Dt();//dt后续再算
 	std::vector<Mesh::nodePtr>& nodesVe = mesh_->getnodelist();
 	for (auto& it : nodesVe)
 	{
-		it->toPrimitiveform();//检查顺序！
+		auto thetype = it->getType();
+		if (Node::Nodetype::inner != thetype)
+			continue;
+		std::vector<double> U = it->getConservedValue();
+		std::vector<double> rhs = it->getRHS();
+		std::vector<double> Unew(4, 0.0);
+		double jacobian = it->getcoordTrans().jacob_;
+		for (size_t ivar = 0; ivar < U.size(); ivar++)
+		{
+			Unew[ivar] = U[ivar] - jacobian * rhs[ivar] * dt;
+		}
+		residual_ += std::pow(rhs[1], 2);//这只是一个量的残差，
+		it->setConservedValue(Unew);
 	}
-
-	//for (int i = 1; i < nx; ++i) {
-	//    for (int j = 1; j < ny; ++j) {
-	//        residual += std::pow(u_new[i][j] - u[i][j], 2);
-	//    }
-	//}
+	caltime_ += dt;
 	residual_ = std::sqrt(residual_);
+	BoundExtrapolate();
+
 }
 
 void FlowSlover::vanLeer(const std::shared_ptr<Node>& nodeptr, const Node::TransCoef& trans, std::vector<double>& fp, std::vector<double>& fn)
 {
-	double ro = nodeptr->rho();
+	double ro = nodeptr->r();
 	double uu = nodeptr->u();
 	double vv = nodeptr->v();
-	double ee = nodeptr->E();
+	double pp = nodeptr->p();
 	//Node::TransCoef trans = nodeptr->getcoordTrans();
 	double k_x = trans.ksi_x_;
 	double k_y = trans.ksi_y_;
@@ -306,7 +338,8 @@ void FlowSlover::vanLeer(const std::shared_ptr<Node>& nodeptr, const Node::Trans
 	double gama = GlobalData::GetDouble("refGamma");
 	//double epls = 1.0e-10;  // 熵修正函数中的较小正数
 
-	double pp = (gama - 1.0) * (ee - ro * (uu * uu + vv * vv) / 2.0);  // 压力
+	//double pp = (gama - 1.0) * (ee - ro * (uu * uu + vv * vv) / 2.0);  // 压力
+	double ee = pp / (gama - 1) + 0.5 * ro * (uu * uu + vv * vv /*+ zVel * zVel*/);
 	double a = std::sqrt(gama * pp / ro);  // 声速
 
 	double d_k = std::sqrt(k_x * k_x + k_y * k_y);  // 分母
@@ -371,7 +404,7 @@ void FlowSlover::checkNaN(const double value)
 
 void FlowSlover::writeTecplotFile(const size_t timestep) const
 {
-	if (timestep % 100 != 0)
+	if (timestep % 20 != 0)
 		return;
 	std::string basePath = "result";
 	Tools::createFolder(basePath);
@@ -414,6 +447,7 @@ void FlowSlover::writeTecplotFile(const size_t timestep) const
 		os << endl;
 	}
 	os.close();
+	spdlog::info("write {} timestep file success!",timestep);
 	return;
 
 }

@@ -45,6 +45,7 @@ private:
 	Nodetype nodetype_;
 	std::vector<double> primitiveValue_;
 	std::vector<double> conservedValue_;
+	std::vector<double> RHS_;
 	std::vector<std::shared_ptr<Node>> neighborNode_;
 	std::shared_ptr<Mesh> meshptr_;
 public:
@@ -73,4 +74,6 @@ public:
 	//double& rhow() { return conservedValue_[3]; }
 	double& E() { return conservedValue_[3]; }
 	void checkNaN(const double value);
+	void setRHS(const std::vector<double>& value) { RHS_ = value; }
+	std::vector<double> getRHS() { return RHS_; }
 };
